@@ -1,0 +1,20 @@
+# Composer
+/wp-post-plugin/vendor/
+composer.lock
+
+# PHPUnit
+.phpunit.result.cache
+/wp-post-plugin/tests/_output/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Plugin runtime
+wp-post-plugin/wp-post-plugin-*.zip
+
+# Logs
+*.log
