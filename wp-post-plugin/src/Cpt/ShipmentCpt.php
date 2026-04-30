@@ -18,6 +18,11 @@ final class ShipmentCpt
 {
     public const POST_TYPE = 'wpp_shipment';
 
+    private const FORM_ID = 'wpp-shipment-label-form';
+
+    private int $postId = 0;
+    private string $nonce = '';
+
     public function __construct(
         private LabelService $labelService,
         private Settings $settings,
@@ -30,6 +35,9 @@ final class ShipmentCpt
         add_action('add_meta_boxes', [$this, 'registerMetaBoxes']);
         add_action('save_post_' . self::POST_TYPE, [$this, 'saveMeta'], 10, 2);
         add_action('admin_post_wpp_generate_shipment_label', [$this, 'handleGenerate']);
+        // Render the action form OUTSIDE the post-edit <form>; nested forms are
+        // dropped by the browser and would submit the post save instead.
+        add_action('admin_footer', [$this, 'printForm']);
     }
 
     public function registerPostType(): void
@@ -111,20 +119,24 @@ final class ShipmentCpt
             echo '<p><a class="button" href="' . esc_url($url) . '" target="_blank" rel="noopener">' . esc_html__('Download label', 'wp-post-plugin') . '</a></p>';
         }
 
-        $nonce = wp_create_nonce('wpp_generate_shipment_label_' . $post->ID);
-        $action = admin_url('admin-post.php');
-        echo '<form method="post" action="' . esc_url($action) . '">';
-        echo '<input type="hidden" name="action" value="wpp_generate_shipment_label">';
-        echo '<input type="hidden" name="post_id" value="' . esc_attr((string) $post->ID) . '">';
-        echo '<input type="hidden" name="_wpnonce" value="' . esc_attr($nonce) . '">';
-        submit_button(
-            $ident === '' ? __('Generate label', 'wp-post-plugin') : __('Re-generate label', 'wp-post-plugin'),
-            'primary',
-            'submit',
-            false
-        );
-        echo '</form>';
+        $this->postId = (int) $post->ID;
+        $this->nonce  = wp_create_nonce('wpp_generate_shipment_label_' . $post->ID);
+
+        $label = $ident === '' ? __('Generate label', 'wp-post-plugin') : __('Re-generate label', 'wp-post-plugin');
+        echo '<p><button type="submit" class="button button-primary" form="' . esc_attr(self::FORM_ID) . '">' . esc_html($label) . '</button></p>';
         echo '<p class="description">' . esc_html__('Uses current Test/Prod setting.', 'wp-post-plugin') . '</p>';
+    }
+
+    public function printForm(): void
+    {
+        if ($this->postId <= 0) {
+            return;
+        }
+        echo '<form id="' . esc_attr(self::FORM_ID) . '" method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:none">';
+        echo '<input type="hidden" name="action" value="wpp_generate_shipment_label">';
+        echo '<input type="hidden" name="post_id" value="' . esc_attr((string) $this->postId) . '">';
+        echo '<input type="hidden" name="_wpnonce" value="' . esc_attr($this->nonce) . '">';
+        echo '</form>';
     }
 
     public function saveMeta(int $postId, \WP_Post $post): void

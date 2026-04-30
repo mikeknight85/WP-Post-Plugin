@@ -14,6 +14,11 @@ use WPPost\Support\Logger;
  */
 final class OrderMetaBox
 {
+    private const FORM_ID = 'wpp-order-label-form';
+
+    private int $orderId = 0;
+    private string $nonce = '';
+
     public function __construct(
         private LabelService $labelService,
         private Logger $logger
@@ -23,6 +28,10 @@ final class OrderMetaBox
     {
         add_action('add_meta_boxes', [$this, 'addMetaBox'], 30);
         add_action('admin_post_wpp_generate_order_label', [$this, 'handleGenerate']);
+        // The form must live OUTSIDE the WC order-edit <form>; nested forms are
+        // ignored by browsers, which would cause the button to submit the order
+        // save instead of admin-post.php.
+        add_action('admin_footer', [$this, 'printForm']);
     }
 
     public function addMetaBox(): void
@@ -61,19 +70,24 @@ final class OrderMetaBox
             echo '<p><a class="button" href="' . esc_url($url) . '" target="_blank" rel="noopener">' . esc_html__('Download label', 'wp-post-plugin') . '</a></p>';
         }
 
-        $nonce = wp_create_nonce('wpp_generate_order_label_' . $orderId);
-        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
-        echo '<input type="hidden" name="action" value="wpp_generate_order_label">';
-        echo '<input type="hidden" name="order_id" value="' . esc_attr((string) $orderId) . '">';
-        echo '<input type="hidden" name="_wpnonce" value="' . esc_attr($nonce) . '">';
-        submit_button(
-            $ident === '' ? __('Generate label', 'wp-post-plugin') : __('Re-generate label', 'wp-post-plugin'),
-            'primary',
-            'submit',
-            false
-        );
-        echo '</form>';
+        $this->orderId = $orderId;
+        $this->nonce   = wp_create_nonce('wpp_generate_order_label_' . $orderId);
+
+        $label = $ident === '' ? __('Generate label', 'wp-post-plugin') : __('Re-generate label', 'wp-post-plugin');
+        echo '<p><button type="submit" class="button button-primary" form="' . esc_attr(self::FORM_ID) . '">' . esc_html($label) . '</button></p>';
         echo '<p class="description">' . esc_html__('Uses current Test/Prod setting.', 'wp-post-plugin') . '</p>';
+    }
+
+    public function printForm(): void
+    {
+        if ($this->orderId <= 0) {
+            return;
+        }
+        echo '<form id="' . esc_attr(self::FORM_ID) . '" method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:none">';
+        echo '<input type="hidden" name="action" value="wpp_generate_order_label">';
+        echo '<input type="hidden" name="order_id" value="' . esc_attr((string) $this->orderId) . '">';
+        echo '<input type="hidden" name="_wpnonce" value="' . esc_attr($this->nonce) . '">';
+        echo '</form>';
     }
 
     public function handleGenerate(): void
