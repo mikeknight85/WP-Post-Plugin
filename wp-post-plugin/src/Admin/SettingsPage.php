@@ -51,11 +51,6 @@ final class SettingsPage
     {
         $group = Settings::OPTION_GROUP;
 
-        register_setting($group, 'wpp_environment', [
-            'type' => 'string',
-            'sanitize_callback' => static fn ($v): string => $v === 'prod' ? 'prod' : 'test',
-            'default' => 'test',
-        ]);
         register_setting($group, 'wpp_language', [
             'type' => 'string',
             'sanitize_callback' => static function ($v): string {
@@ -65,15 +60,6 @@ final class SettingsPage
             'default' => 'DE',
         ]);
 
-        register_setting($group, 'wpp_test_client_id',   ['type' => 'string', 'sanitize_callback' => 'sanitize_text_field']);
-        register_setting($group, 'wpp_test_client_secret', [
-            'type' => 'string',
-            'sanitize_callback' => [$this, 'sanitizeTestSecret'],
-        ]);
-        register_setting($group, 'wpp_test_subscription_key', [
-            'type' => 'string',
-            'sanitize_callback' => [$this, 'sanitizeTestSubscriptionKey'],
-        ]);
         register_setting($group, 'wpp_prod_client_id',   ['type' => 'string', 'sanitize_callback' => 'sanitize_text_field']);
         register_setting($group, 'wpp_prod_client_secret', [
             'type' => 'string',
@@ -86,18 +72,13 @@ final class SettingsPage
 
         register_setting($group, 'wpp_franking_license', ['type' => 'string', 'sanitize_callback' => 'sanitize_text_field']);
 
-        register_setting($group, 'wpp_default_przl', [
-            'type' => 'array',
-            'sanitize_callback' => static function ($v): array {
-                if (is_string($v)) {
-                    $v = array_map('trim', explode(',', $v));
-                }
-                if (!is_array($v)) {
-                    return ['PRI'];
-                }
-                return array_values(array_filter(array_map('sanitize_text_field', $v)));
+        register_setting($group, 'wpp_default_product', [
+            'type' => 'string',
+            'sanitize_callback' => static function ($v): string {
+                $v = (string) $v;
+                return \WPPost\Domain\Products::isValid($v) ? $v : \WPPost\Domain\Products::DEFAULT_KEY;
             },
-            'default' => ['PRI'],
+            'default' => \WPPost\Domain\Products::DEFAULT_KEY,
         ]);
 
         register_setting($group, 'wpp_default_label_format', [
@@ -141,19 +122,9 @@ final class SettingsPage
         ]);
     }
 
-    public function sanitizeTestSecret(string $v): string
-    {
-        return $this->persistEncryptedSecret('wpp_test_client_secret', $v);
-    }
-
     public function sanitizeProdSecret(string $v): string
     {
         return $this->persistEncryptedSecret('wpp_prod_client_secret', $v);
-    }
-
-    public function sanitizeTestSubscriptionKey(string $v): string
-    {
-        return $this->persistEncryptedSecret('wpp_test_subscription_key', $v);
     }
 
     public function sanitizeProdSubscriptionKey(string $v): string
@@ -194,7 +165,6 @@ final class SettingsPage
             $preview = substr($token, 0, 8) . '…';
             $redirect = add_query_arg([
                 'wpp_test' => 'ok',
-                'wpp_env'  => $this->settings->environment(),
                 'wpp_preview' => rawurlencode($preview),
             ], $redirect);
         } catch (ApiException $e) {
@@ -214,10 +184,9 @@ final class SettingsPage
             return;
         }
         $settings = $this->settings;
-        $testResult = isset($_GET['wpp_test']) ? sanitize_text_field((string) $_GET['wpp_test']) : '';
-        $testMsg    = isset($_GET['wpp_msg'])  ? sanitize_text_field(rawurldecode((string) $_GET['wpp_msg'])) : '';
+        $testResult  = isset($_GET['wpp_test'])    ? sanitize_text_field((string) $_GET['wpp_test']) : '';
+        $testMsg     = isset($_GET['wpp_msg'])     ? sanitize_text_field(rawurldecode((string) $_GET['wpp_msg'])) : '';
         $testPreview = isset($_GET['wpp_preview']) ? sanitize_text_field(rawurldecode((string) $_GET['wpp_preview'])) : '';
-        $testEnv    = isset($_GET['wpp_env'])  ? sanitize_text_field((string) $_GET['wpp_env']) : '';
 
         include WPPOST_DIR . 'templates/settings-page.php';
     }

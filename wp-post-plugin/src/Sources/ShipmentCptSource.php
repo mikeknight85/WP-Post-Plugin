@@ -7,6 +7,7 @@ namespace WPPost\Sources;
 use RuntimeException;
 use WPPost\Cpt\ShipmentCpt;
 use WPPost\Domain\Address;
+use WPPost\Domain\Products;
 use WPPost\Domain\Shipment;
 use WPPost\Settings\Settings;
 
@@ -14,7 +15,7 @@ final class ShipmentCptSource implements SourceInterface
 {
     public function __construct(private Settings $settings) {}
 
-    public function getShipment(int $entityId): Shipment
+    public function getShipment(int $entityId, ?string $productKey = null): Shipment
     {
         $post = get_post($entityId);
         if (!$post || $post->post_type !== ShipmentCpt::POST_TYPE) {
@@ -32,12 +33,16 @@ final class ShipmentCptSource implements SourceInterface
 
         $weight = (int) (get_post_meta($entityId, '_wpp_weight_grams', true) ?: 500);
 
+        $przl = $productKey !== null && Products::isValid($productKey)
+            ? Products::przl($productKey)
+            : $this->settings->defaultPrznl();
+
         return new Shipment(
             id: (string) $entityId,
             sender: $this->settings->senderAddress(),
             recipient: $recipient,
             frankingLicense: $this->settings->frankingLicense(),
-            prznlList: $this->settings->defaultPrznl(),
+            prznlList: $przl,
             weightGrams: max(1, $weight),
             labelFormat: $this->settings->defaultLabelFormat(),
             labelSize: $this->settings->defaultLabelSize(),

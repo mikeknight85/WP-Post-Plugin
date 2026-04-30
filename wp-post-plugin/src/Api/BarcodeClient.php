@@ -30,17 +30,15 @@ final class BarcodeClient
 
     public function generateAddressLabel(Shipment $shipment): Label
     {
-        $env             = $this->settings->environment();
         $token           = $this->oauth->getToken(self::SCOPE);
-        $subscriptionKey = $this->settings->subscriptionKey($env);
+        $subscriptionKey = $this->settings->subscriptionKey();
         if ($subscriptionKey === '') {
-            throw new ApiException(sprintf(
-                'Missing %s subscription key. Get the "Primary key" from your app on developer.post.ch and paste it into the WP Post Plugin settings.',
-                $env
-            ));
+            throw new ApiException(
+                'Missing subscription key. Get the "Primary key" from your app on developer.post.ch and paste it into the WP Post Plugin settings.'
+            );
         }
-
-        $printPreview = $env === 'test';
+        // The plugin runs Production-only — Swiss Post never returns SPECIMEN.
+        $printPreview = false;
 
         // DCAPI generateAddressLabel uses a FLAT schema (verified empirically
         // against dcapi.apis.post.ch/barcode/v1):

@@ -12,9 +12,13 @@ interface SourceInterface
      * Build a Shipment from whatever backing entity this source represents
      * (WooCommerce order, CPT post, etc.).
      *
+     * @param ?string $productKey Optional Products::PRESETS key to override
+     *                            the configured default for this single call.
+     *                            Pass null to use the configured default.
+     *
      * @throws \RuntimeException if the entity is missing or has no usable address.
      */
-    public function getShipment(int $entityId): Shipment;
+    public function getShipment(int $entityId, ?string $productKey = null): Shipment;
 
     /**
      * Persist the generated tracking/ident code + label path against the entity

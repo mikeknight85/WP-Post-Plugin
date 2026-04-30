@@ -9,7 +9,7 @@ use WPPost\Support\Logger;
 
 /**
  * OAuth 2.0 Client Credentials flow against the Swiss Post API.
- * Tokens are cached in site transients keyed by environment.
+ * Tokens are cached in site transients keyed by scope.
  */
 final class OAuthClient
 {
@@ -28,20 +28,18 @@ final class OAuthClient
      */
     public function getToken(string $scope): string
     {
-        $env = $this->settings->environment(); // 'test' | 'prod'
-        $transientKey = 'wpp_dcapi_token_' . $env . '_' . md5($scope);
+        $transientKey = 'wpp_dcapi_token_' . md5($scope);
 
         $cached = get_site_transient($transientKey);
         if (is_string($cached) && $cached !== '') {
             return $cached;
         }
 
-        $creds = $this->settings->credentials($env);
+        $creds = $this->settings->credentials();
         if ($creds['client_id'] === '' || $creds['client_secret'] === '') {
-            throw new ApiException(sprintf(
-                'Missing %s credentials. Configure them under Settings → WP Post Plugin.',
-                $env
-            ));
+            throw new ApiException(
+                'Missing credentials. Configure them in WP Post Plugin settings.'
+            );
         }
 
         $response = $this->http->request(
@@ -86,7 +84,6 @@ final class OAuthClient
 
     public function forgetToken(string $scope): void
     {
-        $env = $this->settings->environment();
-        delete_site_transient('wpp_dcapi_token_' . $env . '_' . md5($scope));
+        delete_site_transient('wpp_dcapi_token_' . md5($scope));
     }
 }

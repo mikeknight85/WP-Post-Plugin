@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace WPPost\Cpt;
 
 use WPPost\Admin\LabelDownload;
+use WPPost\Domain\Products;
 use WPPost\Labels\LabelService;
 use WPPost\Settings\Settings;
 use WPPost\Support\Logger;
@@ -124,9 +125,17 @@ final class ShipmentCpt
         $this->postId = (int) $post->ID;
         $this->nonce  = wp_create_nonce('wpp_generate_shipment_label_' . $post->ID);
 
-        $label = $ident === '' ? __('Generate label', 'wp-post-plugin') : __('Re-generate label', 'wp-post-plugin');
-        echo '<p><button type="submit" class="button button-primary" form="' . esc_attr(self::FORM_ID) . '">' . esc_html($label) . '</button></p>';
-        echo '<p class="description">' . esc_html__('Uses current Test/Prod setting.', 'wp-post-plugin') . '</p>';
+        $defaultProduct = $this->settings->defaultProduct();
+        $selectId = 'wpp_shipment_product_' . $post->ID;
+        echo '<p><label for="' . esc_attr($selectId) . '"><strong>' . esc_html__('Product', 'wp-post-plugin') . '</strong></label><br>';
+        echo '<select id="' . esc_attr($selectId) . '" name="wpp_product" form="' . esc_attr(self::FORM_ID) . '" style="max-width:100%">';
+        foreach (Products::options() as $key => $label) {
+            echo '<option value="' . esc_attr($key) . '" ' . selected($defaultProduct, $key, false) . '>' . esc_html($label) . '</option>';
+        }
+        echo '</select></p>';
+
+        $btn = $ident === '' ? __('Generate label', 'wp-post-plugin') : __('Re-generate label', 'wp-post-plugin');
+        echo '<p><button type="submit" class="button button-primary" form="' . esc_attr(self::FORM_ID) . '">' . esc_html($btn) . '</button></p>';
     }
 
     public function printForm(): void
@@ -177,9 +186,12 @@ final class ShipmentCpt
         }
         check_admin_referer('wpp_generate_shipment_label_' . $postId);
 
+        $product = isset($_POST['wpp_product']) ? sanitize_key((string) $_POST['wpp_product']) : '';
+        $product = Products::isValid($product) ? $product : null;
+
         $redirect = get_edit_post_link($postId, 'url') ?: admin_url();
         try {
-            $this->labelService->generateForEntity($postId);
+            $this->labelService->generateForEntity($postId, $product);
             $redirect = add_query_arg('wpp_label', 'ok', $redirect);
         } catch (ApiException $e) {
             $this->logger->error('Label generation failed', ['post_id' => $postId, 'error' => $e->getMessage()]);

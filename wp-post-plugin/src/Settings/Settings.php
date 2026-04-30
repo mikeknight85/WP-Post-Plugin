@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace WPPost\Settings;
 
 use WPPost\Domain\Address;
+use WPPost\Domain\Products;
 use WPPost\Support\Encryption;
 
 /**
@@ -12,32 +13,27 @@ use WPPost\Support\Encryption;
  * encrypted/decrypted using Encryption.
  *
  * Stored options:
- *  - wpp_environment          : "test" | "prod"
- *  - wpp_language             : "DE" | "FR" | "IT" | "EN"
- *  - wpp_test_client_id           : string
- *  - wpp_test_client_secret       : encrypted string
- *  - wpp_test_subscription_key    : encrypted string (Ocp-Apim-Subscription-Key)
- *  - wpp_prod_client_id           : string
- *  - wpp_prod_client_secret       : encrypted string
- *  - wpp_prod_subscription_key    : encrypted string
- *  - wpp_franking_license     : string
- *  - wpp_default_przl         : string[] (e.g. ["PRI"])
- *  - wpp_default_label_format : PDF|PNG|ZPL2|...
- *  - wpp_default_label_size   : A5|A6|A7|FE
- *  - wpp_default_resolution   : 200|300|600
- *  - wpp_sender_address       : array (see Address::fromArray)
+ *  - wpp_language               : "DE" | "FR" | "IT" | "EN"
+ *  - wpp_prod_client_id         : string
+ *  - wpp_prod_client_secret     : encrypted string
+ *  - wpp_prod_subscription_key  : encrypted string (Ocp-Apim-Subscription-Key)
+ *  - wpp_franking_license       : string
+ *  - wpp_default_product        : string (Products::PRESETS key, e.g. "pri")
+ *  - wpp_default_label_format   : PDF|PNG|ZPL2|...
+ *  - wpp_default_label_size     : A5|A6|A7|FE
+ *  - wpp_default_resolution     : 200|300|600
+ *  - wpp_sender_address         : array (see Address::fromArray)
+ *
+ * The plugin runs Production-only — Swiss Post's API uses the same endpoint
+ * for both, with `printPreview: true` distinguishing test/SPECIMEN. We always
+ * send `printPreview: false`. (The `wpp_*_test_*` and `wpp_environment`
+ * options were removed in 0.3.x; uninstall.php still cleans them up.)
  */
 final class Settings
 {
     public const OPTION_GROUP = 'wp-post-plugin';
 
     public function __construct(private Encryption $encryption) {}
-
-    public function environment(): string
-    {
-        $v = (string) get_option('wpp_environment', 'test');
-        return $v === 'prod' ? 'prod' : 'test';
-    }
 
     public function language(): string
     {
@@ -48,27 +44,17 @@ final class Settings
     /**
      * @return array{client_id:string,client_secret:string}
      */
-    public function credentials(string $env): array
+    public function credentials(): array
     {
-        $env = $env === 'prod' ? 'prod' : 'test';
-        $id = (string) get_option('wpp_' . $env . '_client_id', '');
-        $secretEnc = (string) get_option('wpp_' . $env . '_client_secret', '');
-        $secret = $secretEnc === '' ? '' : $this->encryption->decrypt($secretEnc);
+        $id        = (string) get_option('wpp_prod_client_id', '');
+        $secretEnc = (string) get_option('wpp_prod_client_secret', '');
+        $secret    = $secretEnc === '' ? '' : $this->encryption->decrypt($secretEnc);
         return ['client_id' => $id, 'client_secret' => $secret];
     }
 
-    public function saveCredentials(string $env, string $clientId, string $clientSecret): void
+    public function subscriptionKey(): string
     {
-        $env = $env === 'prod' ? 'prod' : 'test';
-        update_option('wpp_' . $env . '_client_id', $clientId, false);
-        $stored = $clientSecret === '' ? '' : $this->encryption->encrypt($clientSecret);
-        update_option('wpp_' . $env . '_client_secret', $stored, false);
-    }
-
-    public function subscriptionKey(string $env): string
-    {
-        $env = $env === 'prod' ? 'prod' : 'test';
-        $enc = (string) get_option('wpp_' . $env . '_subscription_key', '');
+        $enc = (string) get_option('wpp_prod_subscription_key', '');
         return $enc === '' ? '' : $this->encryption->decrypt($enc);
     }
 
@@ -77,14 +63,16 @@ final class Settings
         return (string) get_option('wpp_franking_license', '');
     }
 
-    /** @return string[] */
+    public function defaultProduct(): string
+    {
+        $v = (string) get_option('wpp_default_product', Products::DEFAULT_KEY);
+        return Products::isValid($v) ? $v : Products::DEFAULT_KEY;
+    }
+
+    /** @return string[] Resolved PRZL codes for the configured default product. */
     public function defaultPrznl(): array
     {
-        $raw = get_option('wpp_default_przl', ['PRI']);
-        if (!is_array($raw)) {
-            $raw = array_filter(array_map('trim', explode(',', (string) $raw)));
-        }
-        return array_values(array_filter(array_map('strval', $raw)));
+        return Products::przl($this->defaultProduct());
     }
 
     public function defaultLabelFormat(): string

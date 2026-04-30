@@ -4,25 +4,22 @@
  * @var string $testResult  'ok' | 'fail' | ''
  * @var string $testMsg
  * @var string $testPreview
- * @var string $testEnv
  */
 
 if (!defined('ABSPATH')) { exit; }
 
-$env     = $settings->environment();
-$lang    = $settings->language();
-$testId  = get_option('wpp_test_client_id', '');
-$prodId  = get_option('wpp_prod_client_id', '');
-$hasTestSecret = (string) get_option('wpp_test_client_secret', '') !== '';
+use WPPost\Domain\Products;
+
+$lang          = $settings->language();
+$prodId        = get_option('wpp_prod_client_id', '');
 $hasProdSecret = (string) get_option('wpp_prod_client_secret', '') !== '';
-$hasTestSubKey = (string) get_option('wpp_test_subscription_key', '') !== '';
 $hasProdSubKey = (string) get_option('wpp_prod_subscription_key', '') !== '';
-$franking = $settings->frankingLicense();
-$defaultPrznl = implode(',', $settings->defaultPrznl());
+$franking      = $settings->frankingLicense();
+$defaultProduct = $settings->defaultProduct();
 $defaultFormat = $settings->defaultLabelFormat();
 $defaultSize   = $settings->defaultLabelSize();
 $defaultRes    = $settings->defaultResolution();
-$sender = $settings->senderAddress();
+$sender        = $settings->senderAddress();
 ?>
 <div class="wrap">
     <h1><?php esc_html_e('WP Post Plugin — Swiss Post Labels', 'wp-post-plugin'); ?></h1>
@@ -30,8 +27,7 @@ $sender = $settings->senderAddress();
     <?php if ($testResult === 'ok'): ?>
         <div class="notice notice-success is-dismissible">
             <p><?php printf(
-                esc_html__('Connection OK against %1$s environment. Token preview: %2$s', 'wp-post-plugin'),
-                '<code>' . esc_html($testEnv) . '</code>',
+                esc_html__('Connection OK. Token preview: %s', 'wp-post-plugin'),
                 '<code>' . esc_html($testPreview) . '</code>'
             ); ?></p>
         </div>
@@ -44,18 +40,8 @@ $sender = $settings->senderAddress();
     <form action="options.php" method="post">
         <?php settings_fields(\WPPost\Settings\Settings::OPTION_GROUP); ?>
 
-        <h2><?php esc_html_e('Environment', 'wp-post-plugin'); ?></h2>
+        <h2><?php esc_html_e('General', 'wp-post-plugin'); ?></h2>
         <table class="form-table" role="presentation">
-            <tr>
-                <th scope="row"><label for="wpp_environment"><?php esc_html_e('Mode', 'wp-post-plugin'); ?></label></th>
-                <td>
-                    <select id="wpp_environment" name="wpp_environment">
-                        <option value="test" <?php selected($env, 'test'); ?>><?php esc_html_e('Test (SPECIMEN labels)', 'wp-post-plugin'); ?></option>
-                        <option value="prod" <?php selected($env, 'prod'); ?>><?php esc_html_e('Production (billable labels)', 'wp-post-plugin'); ?></option>
-                    </select>
-                    <p class="description"><?php esc_html_e('In Test mode the plugin sets printPreview=true — Swiss Post returns non-billable SPECIMEN labels.', 'wp-post-plugin'); ?></p>
-                </td>
-            </tr>
             <tr>
                 <th scope="row"><label for="wpp_language"><?php esc_html_e('Label language', 'wp-post-plugin'); ?></label></th>
                 <td>
@@ -70,41 +56,25 @@ $sender = $settings->senderAddress();
 
         <h2><?php esc_html_e('API credentials', 'wp-post-plugin'); ?></h2>
         <p class="description">
-            <?php esc_html_e('Request credentials at developer.post.ch. Required scope: DCAPI_BARCODE_READ.', 'wp-post-plugin'); ?>
+            <?php esc_html_e('Get these from your app on developer.post.ch. Required scope: DCAPI_BARCODE_READ. Production credentials require an active Swiss Post billing relationship.', 'wp-post-plugin'); ?>
         </p>
         <table class="form-table" role="presentation">
             <tr>
-                <th scope="row"><?php esc_html_e('Test — Client ID', 'wp-post-plugin'); ?></th>
-                <td><input type="text" class="regular-text" name="wpp_test_client_id" value="<?php echo esc_attr((string) $testId); ?>" autocomplete="off"></td>
+                <th scope="row"><?php esc_html_e('Client ID', 'wp-post-plugin'); ?></th>
+                <td><input type="text" class="regular-text" name="wpp_prod_client_id" value="<?php echo esc_attr((string) $prodId); ?>" autocomplete="off"></td>
             </tr>
             <tr>
-                <th scope="row"><?php esc_html_e('Test — Client secret', 'wp-post-plugin'); ?></th>
+                <th scope="row"><?php esc_html_e('Client secret', 'wp-post-plugin'); ?></th>
                 <td>
-                    <input type="password" class="regular-text" name="wpp_test_client_secret" value="<?php echo $hasTestSecret ? '********' : ''; ?>" autocomplete="new-password">
+                    <input type="password" class="regular-text" name="wpp_prod_client_secret" value="<?php echo $hasProdSecret ? '********' : ''; ?>" autocomplete="new-password">
                     <p class="description"><?php esc_html_e('Leave unchanged to keep existing value. Stored encrypted.', 'wp-post-plugin'); ?></p>
                 </td>
             </tr>
             <tr>
-                <th scope="row"><?php esc_html_e('Test — Subscription key', 'wp-post-plugin'); ?></th>
-                <td>
-                    <input type="password" class="regular-text" name="wpp_test_subscription_key" value="<?php echo $hasTestSubKey ? '********' : ''; ?>" autocomplete="new-password">
-                    <p class="description"><?php esc_html_e('Ocp-Apim-Subscription-Key from your app on developer.post.ch (sometimes labelled "Primary key"). Required by the Swiss Post API gateway. Stored encrypted.', 'wp-post-plugin'); ?></p>
-                </td>
-            </tr>
-            <tr>
-                <th scope="row"><?php esc_html_e('Production — Client ID', 'wp-post-plugin'); ?></th>
-                <td><input type="text" class="regular-text" name="wpp_prod_client_id" value="<?php echo esc_attr((string) $prodId); ?>" autocomplete="off"></td>
-            </tr>
-            <tr>
-                <th scope="row"><?php esc_html_e('Production — Client secret', 'wp-post-plugin'); ?></th>
-                <td>
-                    <input type="password" class="regular-text" name="wpp_prod_client_secret" value="<?php echo $hasProdSecret ? '********' : ''; ?>" autocomplete="new-password">
-                </td>
-            </tr>
-            <tr>
-                <th scope="row"><?php esc_html_e('Production — Subscription key', 'wp-post-plugin'); ?></th>
+                <th scope="row"><?php esc_html_e('Subscription key', 'wp-post-plugin'); ?></th>
                 <td>
                     <input type="password" class="regular-text" name="wpp_prod_subscription_key" value="<?php echo $hasProdSubKey ? '********' : ''; ?>" autocomplete="new-password">
+                    <p class="description"><?php esc_html_e('Ocp-Apim-Subscription-Key (sometimes labelled "Primary key"). Required by the Swiss Post API gateway. Stored encrypted.', 'wp-post-plugin'); ?></p>
                 </td>
             </tr>
         </table>
@@ -119,10 +89,14 @@ $sender = $settings->senderAddress();
                 </td>
             </tr>
             <tr>
-                <th scope="row"><label for="wpp_default_przl"><?php esc_html_e('Default PRZL codes', 'wp-post-plugin'); ?></label></th>
+                <th scope="row"><label for="wpp_default_product"><?php esc_html_e('Default product', 'wp-post-plugin'); ?></label></th>
                 <td>
-                    <input type="text" id="wpp_default_przl" class="regular-text" name="wpp_default_przl" value="<?php echo esc_attr($defaultPrznl); ?>">
-                    <p class="description"><?php esc_html_e('Comma-separated service codes (e.g. "PRI", "ECO,ZAW3213").', 'wp-post-plugin'); ?></p>
+                    <select id="wpp_default_product" name="wpp_default_product">
+                        <?php foreach (Products::options() as $key => $label): ?>
+                            <option value="<?php echo esc_attr($key); ?>" <?php selected($defaultProduct, $key); ?>><?php echo esc_html($label); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <p class="description"><?php esc_html_e('Used as the default for new labels. You can override per shipment in the meta box.', 'wp-post-plugin'); ?></p>
                 </td>
             </tr>
             <tr>
@@ -207,10 +181,7 @@ $sender = $settings->senderAddress();
     <form action="<?php echo esc_url(admin_url('admin-post.php')); ?>" method="post">
         <input type="hidden" name="action" value="wpp_test_connection">
         <?php wp_nonce_field('wpp_test_connection'); ?>
-        <p><?php printf(
-            esc_html__('Requests an OAuth token for the %s environment and reports the result.', 'wp-post-plugin'),
-            '<code>' . esc_html($env) . '</code>'
-        ); ?></p>
+        <p><?php esc_html_e('Requests an OAuth token using the configured credentials and reports the result.', 'wp-post-plugin'); ?></p>
         <?php submit_button(__('Test connection', 'wp-post-plugin'), 'secondary', 'submit', false); ?>
     </form>
 </div>

@@ -76,7 +76,7 @@ final class Plugin
 
         if ($wcSource !== null) {
             $orderService = new LabelService($wcSource, $barcode, $storage, $logger);
-            (new OrderMetaBox($orderService, $logger))->register();
+            (new OrderMetaBox($orderService, $settings, $logger))->register();
 
             // Bulk actions for WC orders list (use WC source).
             (new BulkActions($orderService, $merger, $logger))->register();

@@ -12,18 +12,23 @@ if (!defined('WP_UNINSTALL_PLUGIN')) {
 }
 
 $options = [
-    'wpp_environment',
     'wpp_language',
-    'wpp_test_client_id',
-    'wpp_test_client_secret',
     'wpp_prod_client_id',
     'wpp_prod_client_secret',
+    'wpp_prod_subscription_key',
     'wpp_franking_license',
-    'wpp_default_przl',
+    'wpp_default_product',
     'wpp_default_label_format',
     'wpp_default_label_size',
     'wpp_default_resolution',
     'wpp_sender_address',
+    // Legacy options removed in 0.3.0 — kept here so uninstall on an old
+    // install still cleans up after itself.
+    'wpp_environment',
+    'wpp_test_client_id',
+    'wpp_test_client_secret',
+    'wpp_test_subscription_key',
+    'wpp_default_przl',
 ];
 foreach ($options as $opt) {
     delete_option($opt);

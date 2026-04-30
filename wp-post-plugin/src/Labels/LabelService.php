@@ -25,11 +25,14 @@ final class LabelService
     ) {}
 
     /**
+     * @param ?string $productKey Optional Products::PRESETS key to override
+     *                            the configured default product for this call.
+     *
      * @return array{label:Label,path:string,shipment:Shipment}
      */
-    public function generateForEntity(int $entityId): array
+    public function generateForEntity(int $entityId, ?string $productKey = null): array
     {
-        $shipment = $this->source->getShipment($entityId);
+        $shipment = $this->source->getShipment($entityId, $productKey);
         if ($shipment->frankingLicense === '') {
             throw new RuntimeException('Franking licence is not configured (Settings → WP Post Plugin).');
         }

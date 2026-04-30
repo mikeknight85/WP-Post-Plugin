@@ -6,6 +6,7 @@ namespace WPPost\Sources;
 
 use RuntimeException;
 use WPPost\Domain\Address;
+use WPPost\Domain\Products;
 use WPPost\Domain\Shipment;
 use WPPost\Settings\Settings;
 
@@ -17,7 +18,7 @@ final class WooCommerceSource implements SourceInterface
 {
     public function __construct(private Settings $settings) {}
 
-    public function getShipment(int $entityId): Shipment
+    public function getShipment(int $entityId, ?string $productKey = null): Shipment
     {
         if (!function_exists('wc_get_order')) {
             throw new RuntimeException('WooCommerce is not active.');
@@ -76,12 +77,16 @@ final class WooCommerceSource implements SourceInterface
             $weight = 500; // sensible default
         }
 
+        $przl = $productKey !== null && Products::isValid($productKey)
+            ? Products::przl($productKey)
+            : $this->settings->defaultPrznl();
+
         return new Shipment(
             id: (string) $entityId,
             sender: $this->settings->senderAddress(),
             recipient: $recipient,
             frankingLicense: $this->settings->frankingLicense(),
-            prznlList: $this->settings->defaultPrznl(),
+            prznlList: $przl,
             weightGrams: $weight,
             labelFormat: $this->settings->defaultLabelFormat(),
             labelSize: $this->settings->defaultLabelSize(),
