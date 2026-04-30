@@ -53,7 +53,7 @@ final class Plugin
         $merger     = new PdfMerger();
 
         // Settings page always present.
-        (new SettingsPage($settings, $oauth))->register();
+        (new SettingsPage($settings, $oauth, $encryption))->register();
 
         // Decide which source to prefer.
         $wooActive = $this->isWooCommerceActive();

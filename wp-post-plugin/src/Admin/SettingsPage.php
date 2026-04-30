@@ -8,6 +8,7 @@ use WPPost\Api\ApiException;
 use WPPost\Api\OAuthClient;
 use WPPost\Api\BarcodeClient;
 use WPPost\Settings\Settings;
+use WPPost\Support\Encryption;
 
 /**
  * Registers the "WP Post Plugin" settings page under Settings.
@@ -22,7 +23,8 @@ final class SettingsPage
 
     public function __construct(
         private Settings $settings,
-        private OAuthClient $oauth
+        private OAuthClient $oauth,
+        private Encryption $encryption
     ) {}
 
     public function register(): void
@@ -141,20 +143,21 @@ final class SettingsPage
 
     /**
      * Preserve the existing stored (encrypted) value when the admin submits
-     * the form without changing the secret field. Otherwise encrypt and store
-     * the new secret.
+     * the form without changing the secret field. Otherwise encrypt and return
+     * the new secret so WP stores the encrypted blob.
+     *
+     * Must NOT call update_option() — register_setting's sanitize_callback runs
+     * inside the sanitize_option_<name> filter, which update_option() re-applies,
+     * causing infinite recursion that re-encrypts the encrypted value until PHP
+     * runs out of memory.
      */
     private function persistSecret(string $env, string $submitted): string
     {
         $submitted = trim($submitted);
-        // Masked placeholder → keep existing.
         if ($submitted === '' || $submitted === '********') {
             return (string) get_option('wpp_' . $env . '_client_secret', '');
         }
-        $current = $this->settings->credentials($env);
-        $this->settings->saveCredentials($env, $current['client_id'], $submitted);
-        // The above already wrote the encrypted value; return it so WP stores the same thing.
-        return (string) get_option('wpp_' . $env . '_client_secret', '');
+        return $this->encryption->encrypt($submitted);
     }
 
     public function handleTestConnection(): void
