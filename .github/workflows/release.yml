@@ -1,9 +1,12 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g. 0.3.0, no leading "v")'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -14,30 +17,62 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify tag matches plugin version
+      - name: Validate inputs
+        id: v
         run: |
           set -euo pipefail
-          tag="${GITHUB_REF_NAME#v}"
-          header=$(grep -E '^\s*\*\s*Version:' wp-post-plugin/wp-post-plugin.php | head -n1 | sed -E 's/.*Version:[[:space:]]*//; s/[[:space:]]+$//')
-          constant=$(grep -E "WPPOST_VERSION" wp-post-plugin/wp-post-plugin.php | head -n1 | sed -E "s/.*WPPOST_VERSION'[^']*'([^']+)'.*/\1/")
-          echo "tag=$tag header=$header constant=$constant"
-          if [ "$tag" != "$header" ] || [ "$tag" != "$constant" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match plugin version (header=$header, constant=$constant)."
+          version="${{ inputs.version }}"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Version must be MAJOR.MINOR.PATCH (got: $version)"
             exit 1
           fi
+          tag="v$version"
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+            echo "::error::Tag $tag already exists on origin."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Bump plugin version
+        run: |
+          set -euo pipefail
+          version="${{ steps.v.outputs.version }}"
+          file="wp-post-plugin/wp-post-plugin.php"
+          sed -i -E "s/^( \* Version:[[:space:]]+).*/\1${version}/" "$file"
+          sed -i -E "s/(define\('WPPOST_VERSION', ')[^']+('\);)/\1${version}\2/" "$file"
+          grep -E "Version:[[:space:]]+${version}" "$file"
+          grep -E "WPPOST_VERSION', '${version}'" "$file"
+
+      - name: Commit & push bump (if file changed)
+        run: |
+          set -euo pipefail
+          version="${{ steps.v.outputs.version }}"
+          if git diff --quiet; then
+            echo "Plugin file already at version ${version}; skipping bump commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add wp-post-plugin/wp-post-plugin.php
+          git commit -m "Release v${version}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
 
       - name: Build plugin zip
         run: |
           set -euo pipefail
           mkdir -p build
-          zip -r "build/wp-post-plugin-${GITHUB_REF_NAME}.zip" wp-post-plugin \
+          tag="${{ steps.v.outputs.tag }}"
+          zip -r "build/wp-post-plugin-${tag}.zip" wp-post-plugin \
             -x 'wp-post-plugin/.git*' \
             -x '*/.DS_Store'
-          unzip -l "build/wp-post-plugin-${GITHUB_REF_NAME}.zip" | head -20
+          unzip -l "build/wp-post-plugin-${tag}.zip" | head -20
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.v.outputs.tag }}
+          name: ${{ steps.v.outputs.tag }}
           files: build/wp-post-plugin-*.zip
           generate_release_notes: true
           draft: false
