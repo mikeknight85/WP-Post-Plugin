@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify tag matches plugin version
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#v}"
+          header=$(grep -E '^\s*\*\s*Version:' wp-post-plugin/wp-post-plugin.php | head -n1 | sed -E 's/.*Version:[[:space:]]*//; s/[[:space:]]+$//')
+          constant=$(grep -E "WPPOST_VERSION" wp-post-plugin/wp-post-plugin.php | head -n1 | sed -E "s/.*WPPOST_VERSION'[^']*'([^']+)'.*/\1/")
+          echo "tag=$tag header=$header constant=$constant"
+          if [ "$tag" != "$header" ] || [ "$tag" != "$constant" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match plugin version (header=$header, constant=$constant)."
+            exit 1
+          fi
+
+      - name: Build plugin zip
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          zip -r "build/wp-post-plugin-${GITHUB_REF_NAME}.zip" wp-post-plugin \
+            -x 'wp-post-plugin/.git*' \
+            -x '*/.DS_Store'
+          unzip -l "build/wp-post-plugin-${GITHUB_REF_NAME}.zip" | head -20
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/wp-post-plugin-*.zip
+          generate_release_notes: true
+          draft: false
+          prerelease: false
