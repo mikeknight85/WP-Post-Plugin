@@ -101,8 +101,11 @@ final class BarcodeClient
 
         if ($response['status'] < 200 || $response['status'] >= 300 || !is_array($response['json'])) {
             $this->logger->error('generateAddressLabel failed', [
-                'status' => $response['status'],
-                'body'   => substr($response['body'], 0, 2000),
+                'url'              => self::BASE_URL . '/generateAddressLabel',
+                'status'           => $response['status'],
+                'response_headers' => $response['headers'],
+                'response_body'    => substr($response['body'], 0, 2000),
+                'request_payload'  => substr((string) wp_json_encode($payload), 0, 2000),
             ]);
             throw new ApiException(
                 'Swiss Post label request failed (HTTP ' . $response['status'] . ').',
