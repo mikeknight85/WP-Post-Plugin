@@ -3,7 +3,7 @@
  * Plugin Name:       WP Post Plugin
  * Plugin URI:        https://github.com/kesslemi/WP-Post-Plugin
  * Description:       Generate Swiss Post compliant barcodes and address labels for WooCommerce orders or standalone shipments via the official Digital Commerce API.
- * Version:           0.2.4
+ * Version:           0.2.5
  * Requires at least: 6.4
  * Requires PHP:      8.1
  * Author:            kesslemi
@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('WPPOST_VERSION', '0.2.4');
+define('WPPOST_VERSION', '0.2.5');
 define('WPPOST_FILE', __FILE__);
 define('WPPOST_DIR', plugin_dir_path(__FILE__));
 define('WPPOST_URL', plugin_dir_url(__FILE__));
