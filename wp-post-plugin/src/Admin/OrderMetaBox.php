@@ -61,13 +61,14 @@ final class OrderMetaBox
 
         $order = function_exists('wc_get_order') ? wc_get_order($orderId) : null;
         $ident = $order ? (string) $order->get_meta('_wpp_ident_code') : '';
-        $url   = $order ? (string) $order->get_meta('_wpp_label_url') : '';
+        $hasLabel = $order ? ((string) $order->get_meta('_wpp_label_path') !== '') : false;
 
         if ($ident !== '') {
             echo '<p><strong>' . esc_html__('Ident:', 'wp-post-plugin') . '</strong> <code>' . esc_html($ident) . '</code></p>';
         }
-        if ($url !== '') {
-            echo '<p><a class="button" href="' . esc_url($url) . '" target="_blank" rel="noopener">' . esc_html__('Download label', 'wp-post-plugin') . '</a></p>';
+        if ($hasLabel) {
+            $downloadUrl = LabelDownload::url('order', $orderId);
+            echo '<p><a class="button" href="' . esc_url($downloadUrl) . '" target="_blank" rel="noopener">' . esc_html__('Download label', 'wp-post-plugin') . '</a></p>';
         }
 
         $this->orderId = $orderId;

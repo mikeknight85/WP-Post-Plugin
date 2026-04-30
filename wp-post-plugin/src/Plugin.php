@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace WPPost;
 
 use WPPost\Admin\BulkActions;
+use WPPost\Admin\LabelDownload;
 use WPPost\Admin\OrderMetaBox;
 use WPPost\Admin\SettingsPage;
 use WPPost\Api\BarcodeClient;
@@ -54,6 +55,11 @@ final class Plugin
 
         // Settings page always present.
         (new SettingsPage($settings, $oauth, $encryption))->register();
+
+        // Authenticated label download endpoint — the labels directory is
+        // locked from public access by .htaccess; this serves the file to
+        // admins via admin-post.php with a per-id nonce.
+        (new LabelDownload())->register();
 
         // Decide which source to prefer.
         $wooActive = $this->isWooCommerceActive();

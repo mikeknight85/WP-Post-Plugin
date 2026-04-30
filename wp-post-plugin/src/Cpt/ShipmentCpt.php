@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace WPPost\Cpt;
 
+use WPPost\Admin\LabelDownload;
 use WPPost\Labels\LabelService;
 use WPPost\Settings\Settings;
 use WPPost\Support\Logger;
@@ -110,13 +111,14 @@ final class ShipmentCpt
 
     public function renderLabelBox(\WP_Post $post): void
     {
-        $ident = (string) get_post_meta($post->ID, '_wpp_ident_code', true);
-        $url   = (string) get_post_meta($post->ID, '_wpp_label_url', true);
+        $ident    = (string) get_post_meta($post->ID, '_wpp_ident_code', true);
+        $hasLabel = (string) get_post_meta($post->ID, '_wpp_label_path', true) !== '';
         if ($ident !== '') {
             echo '<p><strong>' . esc_html__('Ident:', 'wp-post-plugin') . '</strong> <code>' . esc_html($ident) . '</code></p>';
         }
-        if ($url !== '') {
-            echo '<p><a class="button" href="' . esc_url($url) . '" target="_blank" rel="noopener">' . esc_html__('Download label', 'wp-post-plugin') . '</a></p>';
+        if ($hasLabel) {
+            $downloadUrl = LabelDownload::url('shipment', (int) $post->ID);
+            echo '<p><a class="button" href="' . esc_url($downloadUrl) . '" target="_blank" rel="noopener">' . esc_html__('Download label', 'wp-post-plugin') . '</a></p>';
         }
 
         $this->postId = (int) $post->ID;
