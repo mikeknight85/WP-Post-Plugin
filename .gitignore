@@ -18,3 +18,8 @@ wp-post-plugin/wp-post-plugin-*.zip
 
 # Logs
 *.log
+
+# Local test harness — never commit credentials or generated labels
+.env
+/tools/.env
+/tools/out/
