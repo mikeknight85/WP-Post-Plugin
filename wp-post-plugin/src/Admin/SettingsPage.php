@@ -36,12 +36,14 @@ final class SettingsPage
 
     public function menu(): void
     {
-        add_options_page(
+        add_menu_page(
             __('WP Post Plugin', 'wp-post-plugin'),
             __('WP Post Plugin', 'wp-post-plugin'),
             self::CAPABILITY,
             self::MENU_SLUG,
-            [$this, 'render']
+            [$this, 'render'],
+            'dashicons-archive',
+            56
         );
     }
 
@@ -167,7 +169,7 @@ final class SettingsPage
         }
         check_admin_referer('wpp_test_connection');
 
-        $redirect = admin_url('options-general.php?page=' . self::MENU_SLUG);
+        $redirect = admin_url('admin.php?page=' . self::MENU_SLUG);
         try {
             $this->oauth->forgetToken(BarcodeClient::SCOPE);
             $token = $this->oauth->getToken(BarcodeClient::SCOPE);
