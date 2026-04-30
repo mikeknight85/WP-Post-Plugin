@@ -9,7 +9,7 @@ WordPress plugin that generates Swiss Post compliant barcodes and address labels
 
 ## Status
 
-v0.1.0 — scaffolded, not yet validated against a live Swiss Post account. Address verification (`/runquery2`) and checkout autocomplete (`/autocomplete4`) are deferred to v2.
+v0.2.x — installable, in active testing against the Swiss Post Test environment. Address verification (`/runquery2`) and checkout autocomplete (`/autocomplete4`) are deferred to v2.
 
 ## Requirements
 
@@ -40,14 +40,22 @@ Without a billing relationship the Production credentials won't be issued — bu
 
 ## 2. Install
 
-### Option A — direct copy
+### Option A — install from GitHub Releases (recommended)
 
-1. Download this repository (ZIP or git clone).
+1. Open the [Releases page](https://github.com/mikeknight85/WP-Post-Plugin/releases) and download the latest `wp-post-plugin-vX.Y.Z.zip`.
+2. In WP admin → **Plugins → Add New → Upload Plugin** → choose the zip → **Install Now** → **Activate**.
+3. (Optional, for bulk PDF merging) SSH in and run `composer install` inside `wp-content/plugins/wp-post-plugin/`. The plugin boots without it; you just can't merge PDFs in bulk until it's installed.
+
+To **update** later: download the newer zip and re-upload — WordPress will prompt to replace the existing install.
+
+### Option B — direct copy from source
+
+1. Clone this repository.
 2. Copy the inner `wp-post-plugin/` folder into `wp-content/plugins/` on your WordPress site.
-3. (Recommended) SSH in and run `composer install` inside that folder. This installs `setasign/fpdi`, which is needed for bulk PDF merging. The plugin boots without it; you just can't merge PDFs in bulk until it's installed.
+3. (Recommended) Run `composer install` inside that folder for the bulk-PDF-merge dependency.
 4. In WP admin → **Plugins** → activate **WP Post Plugin**.
 
-### Option B — as a git submodule / symlink (dev workflow)
+### Option C — as a git clone / symlink (dev workflow)
 
 ```bash
 cd wp-content/plugins
@@ -60,7 +68,7 @@ On activation the plugin creates `wp-content/uploads/wp-post-labels/` with an `.
 
 ## 3. Configure
 
-Go to **Settings → WP Post Plugin**. Fill the three sections top-to-bottom.
+In the WP admin sidebar, click the top-level **WP Post Plugin** menu item. Fill the three sections top-to-bottom.
 
 ### 3.1 Environment
 
@@ -152,7 +160,7 @@ Same pattern as WooCommerce: select multiple shipment posts, use the **Generate 
 Once you've successfully generated several SPECIMEN labels:
 
 1. Confirm your Swiss Post billing relationship is active for the API.
-2. Enter your Production client ID/secret in **Settings → WP Post Plugin**.
+2. Enter your Production client ID/secret in the **WP Post Plugin** admin page.
 3. Flip **Mode** → `Production`.
 4. **Test connection** — should still pass, now against production creds.
 5. Generate a single real label from a low-risk order first. Check:
@@ -190,16 +198,20 @@ Labels are **not** deleted when the plugin is uninstalled. Delete them manually 
 | **Labels not scanning** | 200 dpi on a dense barcode | Switch to 300 or 600 dpi |
 | **Token keeps re-requesting** | `AUTH_KEY`/`SECURE_AUTH_KEY` changed in `wp-config.php` | That invalidates encrypted secrets — re-enter the client secret and test again |
 
-Enable WP debug logging to see every HTTP request/response detail:
+**Where to read logs:**
 
-```php
-// wp-config.php
-define('WP_DEBUG', true);
-define('WP_DEBUG_LOG', true);
-define('WP_DEBUG_DISPLAY', false);
-```
+- **With WooCommerce active** (the common case) — go to **WooCommerce → Status → Logs** and pick `wp-post-plugin-…` from the dropdown. On disk: `wp-content/uploads/wc-logs/wp-post-plugin-YYYY-MM-DD-<hash>.log`.
+- **Without WooCommerce** — set `WP_DEBUG_LOG` and tail `wp-content/debug.log`:
+  ```php
+  // wp-config.php
+  define('WP_DEBUG', true);
+  define('WP_DEBUG_LOG', true);
+  define('WP_DEBUG_DISPLAY', false);
+  ```
+  Plugin log lines are prefixed `[wp-post-plugin]`.
+- **PHP fatals / uncaught errors** never reach the plugin logger — those go to `wp-content/debug.log` (if `WP_DEBUG_LOG` is on) or the host's PHP error log (Plesk: `logs/error_log`).
 
-Then tail `wp-content/debug.log`. Plugin log lines are prefixed `[wp-post-plugin]`. Secrets (`client_secret`, `access_token`, `authorization`) are redacted to `***` before write.
+Secrets (`client_secret`, `access_token`, `authorization`) are redacted to `***` before write.
 
 ## 9. Security notes
 
@@ -237,6 +249,18 @@ wp-post-plugin/
     ├── Settings/Settings.php
     └── Support/                 Logger, Encryption
 ```
+
+## Cutting a release (maintainers)
+
+Releases are produced by a **manually-triggered** GitHub Actions workflow — there is no need to edit the version in code or push tags by hand.
+
+1. Go to **GitHub → Actions → Release → Run workflow**.
+2. Enter the new version (e.g. `0.3.0`, no `v` prefix). It must be `MAJOR.MINOR.PATCH`.
+3. Click **Run workflow**.
+
+The workflow validates the version, edits `Version:` and `WPPOST_VERSION` in [wp-post-plugin/wp-post-plugin.php](wp-post-plugin/wp-post-plugin.php), commits the bump to `main`, builds `wp-post-plugin-vX.Y.Z.zip` (with the proper top-level folder structure expected by WordPress), and publishes the GitHub Release with auto-generated notes and the zip attached.
+
+End users then install or update via **Plugins → Add New → Upload Plugin**.
 
 ## License
 
