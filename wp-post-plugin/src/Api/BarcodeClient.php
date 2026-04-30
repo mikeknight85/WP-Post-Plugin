@@ -34,8 +34,10 @@ final class BarcodeClient
 
         $printPreview = $this->settings->environment() === 'test';
 
-        // Request shape follows the DCAPI generateAddressLabel schema.
-        // Structure: language + envelope containing labelDefinition, item, and addresses.
+        // Request shape follows the DCAPI generateAddressLabel schema:
+        // recipient, customer and frankingLicense are siblings of item inside
+        // each fileInfo (not nested inside item, which is what an earlier
+        // version did and what APIM rejects with an empty 400).
         $payload = [
             'language' => $this->settings->language(),
             'envelope' => [
@@ -48,9 +50,13 @@ final class BarcodeClient
                 ],
                 'fileInfos' => [
                     [
+                        'frankingLicense' => $shipment->frankingLicense,
+                        'ppFranking'      => false,
+                        'recipient'       => $shipment->recipient->toApiArray(),
+                        'customer'        => $shipment->sender->toApiArray(),
                         'item' => [
-                            'itemID'            => $shipment->id,
-                            'customerReference' => $shipment->customerReference !== ''
+                            'itemID' => $shipment->id,
+                            'additionalCustomerReference1' => $shipment->customerReference !== ''
                                 ? $shipment->customerReference
                                 : $shipment->id,
                             'physical' => [
@@ -59,11 +65,6 @@ final class BarcodeClient
                             'attributes' => [
                                 'przl' => array_values($shipment->prznlList),
                             ],
-                            'recipient' => $shipment->recipient->toApiArray(),
-                            'customer'  => array_merge(
-                                $shipment->sender->toApiArray(),
-                                ['frankingLicense' => $shipment->frankingLicense]
-                            ),
                         ],
                     ],
                 ],
