@@ -14,10 +14,12 @@ use WPPost\Support\Encryption;
  * Stored options:
  *  - wpp_environment          : "test" | "prod"
  *  - wpp_language             : "DE" | "FR" | "IT" | "EN"
- *  - wpp_test_client_id       : string
- *  - wpp_test_client_secret   : encrypted string
- *  - wpp_prod_client_id       : string
- *  - wpp_prod_client_secret   : encrypted string
+ *  - wpp_test_client_id           : string
+ *  - wpp_test_client_secret       : encrypted string
+ *  - wpp_test_subscription_key    : encrypted string (Ocp-Apim-Subscription-Key)
+ *  - wpp_prod_client_id           : string
+ *  - wpp_prod_client_secret       : encrypted string
+ *  - wpp_prod_subscription_key    : encrypted string
  *  - wpp_franking_license     : string
  *  - wpp_default_przl         : string[] (e.g. ["PRI"])
  *  - wpp_default_label_format : PDF|PNG|ZPL2|...
@@ -61,6 +63,13 @@ final class Settings
         update_option('wpp_' . $env . '_client_id', $clientId, false);
         $stored = $clientSecret === '' ? '' : $this->encryption->encrypt($clientSecret);
         update_option('wpp_' . $env . '_client_secret', $stored, false);
+    }
+
+    public function subscriptionKey(string $env): string
+    {
+        $env = $env === 'prod' ? 'prod' : 'test';
+        $enc = (string) get_option('wpp_' . $env . '_subscription_key', '');
+        return $enc === '' ? '' : $this->encryption->decrypt($enc);
     }
 
     public function frankingLicense(): string

@@ -70,10 +70,18 @@ final class SettingsPage
             'type' => 'string',
             'sanitize_callback' => [$this, 'sanitizeTestSecret'],
         ]);
+        register_setting($group, 'wpp_test_subscription_key', [
+            'type' => 'string',
+            'sanitize_callback' => [$this, 'sanitizeTestSubscriptionKey'],
+        ]);
         register_setting($group, 'wpp_prod_client_id',   ['type' => 'string', 'sanitize_callback' => 'sanitize_text_field']);
         register_setting($group, 'wpp_prod_client_secret', [
             'type' => 'string',
             'sanitize_callback' => [$this, 'sanitizeProdSecret'],
+        ]);
+        register_setting($group, 'wpp_prod_subscription_key', [
+            'type' => 'string',
+            'sanitize_callback' => [$this, 'sanitizeProdSubscriptionKey'],
         ]);
 
         register_setting($group, 'wpp_franking_license', ['type' => 'string', 'sanitize_callback' => 'sanitize_text_field']);
@@ -135,12 +143,22 @@ final class SettingsPage
 
     public function sanitizeTestSecret(string $v): string
     {
-        return $this->persistSecret('test', $v);
+        return $this->persistEncryptedSecret('wpp_test_client_secret', $v);
     }
 
     public function sanitizeProdSecret(string $v): string
     {
-        return $this->persistSecret('prod', $v);
+        return $this->persistEncryptedSecret('wpp_prod_client_secret', $v);
+    }
+
+    public function sanitizeTestSubscriptionKey(string $v): string
+    {
+        return $this->persistEncryptedSecret('wpp_test_subscription_key', $v);
+    }
+
+    public function sanitizeProdSubscriptionKey(string $v): string
+    {
+        return $this->persistEncryptedSecret('wpp_prod_subscription_key', $v);
     }
 
     /**
@@ -153,11 +171,11 @@ final class SettingsPage
      * causing infinite recursion that re-encrypts the encrypted value until PHP
      * runs out of memory.
      */
-    private function persistSecret(string $env, string $submitted): string
+    private function persistEncryptedSecret(string $optionName, string $submitted): string
     {
         $submitted = trim($submitted);
         if ($submitted === '' || $submitted === '********') {
-            return (string) get_option('wpp_' . $env . '_client_secret', '');
+            return (string) get_option($optionName, '');
         }
         return $this->encryption->encrypt($submitted);
     }

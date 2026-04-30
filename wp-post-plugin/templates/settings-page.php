@@ -15,6 +15,8 @@ $testId  = get_option('wpp_test_client_id', '');
 $prodId  = get_option('wpp_prod_client_id', '');
 $hasTestSecret = (string) get_option('wpp_test_client_secret', '') !== '';
 $hasProdSecret = (string) get_option('wpp_prod_client_secret', '') !== '';
+$hasTestSubKey = (string) get_option('wpp_test_subscription_key', '') !== '';
+$hasProdSubKey = (string) get_option('wpp_prod_subscription_key', '') !== '';
 $franking = $settings->frankingLicense();
 $defaultPrznl = implode(',', $settings->defaultPrznl());
 $defaultFormat = $settings->defaultLabelFormat();
@@ -83,6 +85,13 @@ $sender = $settings->senderAddress();
                 </td>
             </tr>
             <tr>
+                <th scope="row"><?php esc_html_e('Test — Subscription key', 'wp-post-plugin'); ?></th>
+                <td>
+                    <input type="password" class="regular-text" name="wpp_test_subscription_key" value="<?php echo $hasTestSubKey ? '********' : ''; ?>" autocomplete="new-password">
+                    <p class="description"><?php esc_html_e('Ocp-Apim-Subscription-Key from your app on developer.post.ch (sometimes labelled "Primary key"). Required by the Swiss Post API gateway. Stored encrypted.', 'wp-post-plugin'); ?></p>
+                </td>
+            </tr>
+            <tr>
                 <th scope="row"><?php esc_html_e('Production — Client ID', 'wp-post-plugin'); ?></th>
                 <td><input type="text" class="regular-text" name="wpp_prod_client_id" value="<?php echo esc_attr((string) $prodId); ?>" autocomplete="off"></td>
             </tr>
@@ -90,6 +99,12 @@ $sender = $settings->senderAddress();
                 <th scope="row"><?php esc_html_e('Production — Client secret', 'wp-post-plugin'); ?></th>
                 <td>
                     <input type="password" class="regular-text" name="wpp_prod_client_secret" value="<?php echo $hasProdSecret ? '********' : ''; ?>" autocomplete="new-password">
+                </td>
+            </tr>
+            <tr>
+                <th scope="row"><?php esc_html_e('Production — Subscription key', 'wp-post-plugin'); ?></th>
+                <td>
+                    <input type="password" class="regular-text" name="wpp_prod_subscription_key" value="<?php echo $hasProdSubKey ? '********' : ''; ?>" autocomplete="new-password">
                 </td>
             </tr>
         </table>

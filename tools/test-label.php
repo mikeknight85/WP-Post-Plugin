@@ -143,41 +143,44 @@ echo "Token: " . substr($token, 0, 16) . "…\n";
 // --- 2. generateAddressLabel ---------------------------------------------
 section('generateAddressLabel — POST https://dcapi.apis.post.ch/barcode/v1/generateAddressLabel');
 
+// DCAPI flat schema (verified empirically). customer rejects houseNo/email/
+// phone, so we concat houseNo into street for the sender. recipient accepts
+// all of them.
+$senderStreet = trim(env('WPP_SENDER_STREET', 'Bahnhofstrasse')
+    . ' ' . env('WPP_SENDER_HOUSE_NO', ''));
+$recipStreet  = trim(env('WPP_RECIPIENT_STREET', 'Bahnhofstrasse')
+    . ' ' . env('WPP_RECIPIENT_HOUSE_NO', ''));
+
 $payload = [
-    'language' => 'DE',
-    'envelope' => [
-        'labelDefinition' => [
-            'labelLayout'     => 'A6',
-            'printAddresses'  => 'RECIPIENT_AND_CUSTOMER',
-            'imageFileType'   => 'PDF',
-            'imageResolution' => 300,
-            'printPreview'    => $environment === 'test',
+    'language'        => 'DE',
+    'frankingLicense' => $frankingLicense,
+    'labelDefinition' => [
+        'labelLayout'     => 'A6',
+        'printAddresses'  => 'RECIPIENT_AND_CUSTOMER',
+        'imageFileType'   => 'PDF',
+        'imageResolution' => 300,
+        'printPreview'    => $environment === 'test',
+    ],
+    'customer' => array_filter([
+        'name1'   => env('WPP_SENDER_NAME', 'Test Sender'),
+        'street'  => $senderStreet,
+        'zip'     => env('WPP_SENDER_ZIP', '8001'),
+        'city'    => env('WPP_SENDER_CITY', 'Zurich'),
+        'country' => env('WPP_SENDER_COUNTRY', 'CH'),
+    ], static fn ($v) => $v !== ''),
+    'item' => [
+        'itemID'     => 'TEST-' . time(),
+        'attributes' => [
+            'przl'   => ['PRI'],
+            'weight' => 500,
         ],
-        'fileInfos' => [[
-            'frankingLicense' => $frankingLicense,
-            'ppFranking'      => false,
-            'recipient' => array_filter([
-                'name1'   => env('WPP_RECIPIENT_NAME', 'Max Muster'),
-                'street'  => env('WPP_RECIPIENT_STREET', 'Bahnhofstrasse'),
-                'houseNo' => env('WPP_RECIPIENT_HOUSE_NO', '1'),
-                'zip'     => env('WPP_RECIPIENT_ZIP', '8001'),
-                'city'    => env('WPP_RECIPIENT_CITY', 'Zurich'),
-                'country' => env('WPP_RECIPIENT_COUNTRY', 'CH'),
-            ], static fn ($v) => $v !== ''),
-            'customer' => array_filter([
-                'name1'   => env('WPP_SENDER_NAME', 'Test Sender'),
-                'street'  => env('WPP_SENDER_STREET', 'Bahnhofstrasse'),
-                'houseNo' => env('WPP_SENDER_HOUSE_NO', '2'),
-                'zip'     => env('WPP_SENDER_ZIP', '8001'),
-                'city'    => env('WPP_SENDER_CITY', 'Zurich'),
-                'country' => env('WPP_SENDER_COUNTRY', 'CH'),
-            ], static fn ($v) => $v !== ''),
-            'item' => [
-                'itemID'     => 'TEST-' . time(),
-                'physical'   => ['weight' => 500],
-                'attributes' => ['przl' => ['PRI']],
-            ],
-        ]],
+        'recipient' => array_filter([
+            'name1'   => env('WPP_RECIPIENT_NAME', 'Max Muster'),
+            'street'  => $recipStreet,
+            'zip'     => env('WPP_RECIPIENT_ZIP', '8001'),
+            'city'    => env('WPP_RECIPIENT_CITY', 'Zurich'),
+            'country' => env('WPP_RECIPIENT_COUNTRY', 'CH'),
+        ], static fn ($v) => $v !== ''),
     ],
 ];
 
@@ -222,10 +225,13 @@ if (strlen($labelResp['body']) === 0) {
 
 // --- Save the label on success ------------------------------------------
 if ($labelResp['status'] >= 200 && $labelResp['status'] < 300) {
-    $json = json_decode($labelResp['body'], true);
-    $b64  = $json['envelope']['fileInfos'][0]['item']['label'] ?? null;
-    if (is_string($b64)) {
-        $bin = base64_decode($b64, true);
+    $json  = json_decode($labelResp['body'], true);
+    $label = $json['item']['label'] ?? null;
+    if (is_array($label)) {
+        $label = implode('', array_filter($label, 'is_string'));
+    }
+    if (is_string($label) && $label !== '') {
+        $bin = base64_decode($label, true);
         if ($bin !== false) {
             $outDir = __DIR__ . '/out';
             if (!is_dir($outDir)) {
@@ -234,6 +240,7 @@ if ($labelResp['status'] >= 200 && $labelResp['status'] < 300) {
             $outFile = $outDir . '/label-' . date('Ymd-His') . '.pdf';
             file_put_contents($outFile, $bin);
             echo "Saved label to: $outFile\n";
+            echo "identCode: " . (string) ($json['item']['identCode'] ?? '') . "\n";
         }
     }
 }

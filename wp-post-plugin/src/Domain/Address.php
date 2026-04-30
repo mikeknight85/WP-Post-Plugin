@@ -28,23 +28,39 @@ final class Address
     }
 
     /**
-     * DCAPI expects addresses as an object with name + address fields.
-     * Keys intentionally match the Swiss Post field names.
+     * DCAPI expects addresses as a flat object. Field rules differ between
+     * customer (sender) and recipient — verified empirically against
+     * dcapi.apis.post.ch/barcode/v1:
+     *   - customer rejects houseNo/email/phone (extra fields → empty 400)
+     *   - recipient accepts everything
+     * houseNo is always concatenated into street since customer doesn't
+     * accept the separate field.
      */
-    public function toApiArray(): array
+    public function toApiArray(bool $forCustomer = false): array
     {
-        $name = trim($this->firstName . ' ' . $this->lastName);
-        return array_filter([
-            'name1'         => $this->company !== '' ? $this->company : $name,
-            'name2'         => $this->company !== '' ? $name : '',
-            'street'        => trim($this->street),
-            'houseNo'       => $this->houseNo,
-            'zip'           => $this->zip,
-            'city'          => $this->city,
-            'country'       => strtoupper($this->country),
-            'email'         => $this->email,
-            'phone'         => $this->phone,
-        ], static fn ($v) => $v !== '' && $v !== null);
+        $name  = trim($this->firstName . ' ' . $this->lastName);
+        $name1 = $this->company !== '' ? $this->company : $name;
+        $name2 = $this->company !== '' ? $name : '';
+
+        $street = trim($this->street);
+        if ($this->houseNo !== '') {
+            $street = trim($street . ' ' . $this->houseNo);
+        }
+
+        $out = [
+            'name1'   => $name1,
+            'name2'   => $name2,
+            'street'  => $street,
+            'zip'     => $this->zip,
+            'city'    => $this->city,
+            'country' => strtoupper($this->country) ?: 'CH',
+        ];
+        if (!$forCustomer) {
+            $out['email'] = $this->email;
+            $out['phone'] = $this->phone;
+        }
+
+        return array_filter($out, static fn ($v) => $v !== '' && $v !== null);
     }
 
     public static function fromArray(array $data): self

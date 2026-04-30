@@ -30,55 +30,57 @@ final class BarcodeClient
 
     public function generateAddressLabel(Shipment $shipment): Label
     {
-        $token = $this->oauth->getToken(self::SCOPE);
+        $env             = $this->settings->environment();
+        $token           = $this->oauth->getToken(self::SCOPE);
+        $subscriptionKey = $this->settings->subscriptionKey($env);
+        if ($subscriptionKey === '') {
+            throw new ApiException(sprintf(
+                'Missing %s subscription key. Get the "Primary key" from your app on developer.post.ch and paste it into the WP Post Plugin settings.',
+                $env
+            ));
+        }
 
-        $printPreview = $this->settings->environment() === 'test';
+        $printPreview = $env === 'test';
 
-        // Request shape follows the DCAPI generateAddressLabel schema:
-        // recipient, customer and frankingLicense are siblings of item inside
-        // each fileInfo (not nested inside item, which is what an earlier
-        // version did and what APIM rejects with an empty 400).
+        // DCAPI generateAddressLabel uses a FLAT schema (verified empirically
+        // against dcapi.apis.post.ch/barcode/v1):
+        //   - root: language, frankingLicense, labelDefinition, customer, item
+        //   - item.recipient (recipient is nested in item)
+        //   - item.attributes.{przl, weight} (weight is grams, not in physical{})
+        //   - customer rejects houseNo/email/phone — Address::toApiArray
+        //     handles that with $forCustomer=true.
         $payload = [
-            'language' => $this->settings->language(),
-            'envelope' => [
-                'labelDefinition' => [
-                    'labelLayout'     => $shipment->labelSize,
-                    'printAddresses'  => 'RECIPIENT_AND_CUSTOMER',
-                    'imageFileType'   => $shipment->labelFormat,
-                    'imageResolution' => $shipment->resolution,
-                    'printPreview'    => $printPreview,
-                ],
-                'fileInfos' => [
-                    [
-                        'frankingLicense' => $shipment->frankingLicense,
-                        'ppFranking'      => false,
-                        'recipient'       => $shipment->recipient->toApiArray(),
-                        'customer'        => $shipment->sender->toApiArray(),
-                        'item' => [
-                            'itemID' => $shipment->id,
-                            'additionalCustomerReference1' => $shipment->customerReference !== ''
-                                ? $shipment->customerReference
-                                : $shipment->id,
-                            'physical' => [
-                                'weight' => $shipment->weightGrams,
-                            ],
-                            'attributes' => [
-                                'przl' => array_values($shipment->prznlList),
-                            ],
-                        ],
-                    ],
-                ],
+            'language'        => $this->settings->language(),
+            'frankingLicense' => $shipment->frankingLicense,
+            'labelDefinition' => [
+                'labelLayout'     => $shipment->labelSize,
+                'printAddresses'  => 'RECIPIENT_AND_CUSTOMER',
+                'imageFileType'   => $shipment->labelFormat,
+                'imageResolution' => $shipment->resolution,
+                'printPreview'    => $printPreview,
             ],
+            'customer' => $shipment->sender->toApiArray(forCustomer: true),
+            'item' => [
+                'itemID'    => (string) $shipment->id,
+                'attributes' => [
+                    'przl'   => array_values($shipment->prznlList),
+                    'weight' => $shipment->weightGrams,
+                ],
+                'recipient' => $shipment->recipient->toApiArray(),
+            ],
+        ];
+
+        $headers = [
+            'Authorization'              => 'Bearer ' . $token,
+            'Ocp-Apim-Subscription-Key'  => $subscriptionKey,
+            'Content-Type'               => 'application/json',
+            'Accept'                     => 'application/json',
         ];
 
         $response = $this->http->request(
             'POST',
             self::BASE_URL . '/generateAddressLabel',
-            [
-                'Authorization' => 'Bearer ' . $token,
-                'Content-Type'  => 'application/json',
-                'Accept'        => 'application/json',
-            ],
+            $headers,
             $payload,
             45
         );
@@ -87,14 +89,11 @@ final class BarcodeClient
         if ($response['status'] === 401) {
             $this->oauth->forgetToken(self::SCOPE);
             $token = $this->oauth->getToken(self::SCOPE);
+            $headers['Authorization'] = 'Bearer ' . $token;
             $response = $this->http->request(
                 'POST',
                 self::BASE_URL . '/generateAddressLabel',
-                [
-                    'Authorization' => 'Bearer ' . $token,
-                    'Content-Type'  => 'application/json',
-                    'Accept'        => 'application/json',
-                ],
+                $headers,
                 $payload,
                 45
             );
@@ -115,14 +114,22 @@ final class BarcodeClient
             );
         }
 
-        $fileInfo = $response['json']['envelope']['fileInfos'][0] ?? null;
-        $item     = is_array($fileInfo) ? ($fileInfo['item'] ?? null) : null;
+        $item = $response['json']['item'] ?? null;
+        if (!is_array($item)) {
+            throw new ApiException('Swiss Post response missing item.');
+        }
 
-        if (!is_array($item) || empty($item['label']) || !is_string($item['label'])) {
+        // DCAPI returns label as either an array of base64 chunks (one per page)
+        // or a single string. Concatenate before decoding.
+        $labelData = $item['label'] ?? null;
+        if (is_array($labelData)) {
+            $labelData = implode('', array_filter($labelData, 'is_string'));
+        }
+        if (!is_string($labelData) || $labelData === '') {
             throw new ApiException('Swiss Post response missing label payload.');
         }
 
-        $binary = base64_decode($item['label'], true);
+        $binary = base64_decode($labelData, true);
         if ($binary === false) {
             throw new ApiException('Swiss Post label payload is not valid base64.');
         }
