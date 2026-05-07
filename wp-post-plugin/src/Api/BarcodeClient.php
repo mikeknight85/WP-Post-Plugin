@@ -114,6 +114,10 @@ final class BarcodeClient
 
         $item = $response['json']['item'] ?? null;
         if (!is_array($item)) {
+            $this->logger->error('generateAddressLabel returned 2xx without item', [
+                'status'        => $response['status'],
+                'response_body' => substr($response['body'], 0, 2000),
+            ]);
             throw new ApiException('Swiss Post response missing item.');
         }
 
@@ -124,7 +128,26 @@ final class BarcodeClient
             $labelData = implode('', array_filter($labelData, 'is_string'));
         }
         if (!is_string($labelData) || $labelData === '') {
-            throw new ApiException('Swiss Post response missing label payload.');
+            // DCAPI sometimes returns 2xx with an `errors` array on item or root
+            // instead of a label — surface those messages so the cause is visible.
+            $errors = $item['errors'] ?? $response['json']['errors'] ?? null;
+            $detail = '';
+            if (is_array($errors) && $errors !== []) {
+                $messages = [];
+                foreach ($errors as $e) {
+                    if (is_array($e)) {
+                        $messages[] = trim((string) ($e['message'] ?? $e['code'] ?? wp_json_encode($e)));
+                    } elseif (is_string($e)) {
+                        $messages[] = $e;
+                    }
+                }
+                $detail = ' ' . implode('; ', array_filter($messages));
+            }
+            $this->logger->error('generateAddressLabel returned 2xx without label payload', [
+                'status'        => $response['status'],
+                'response_body' => substr($response['body'], 0, 2000),
+            ]);
+            throw new ApiException('Swiss Post response missing label payload.' . $detail);
         }
 
         $binary = base64_decode($labelData, true);

@@ -19,20 +19,20 @@ final class Products
     /** @var array<string, array{label:string, przl:string[]}> */
     public const PRESETS = [
         'eco' => [
-            'label' => 'PostPac Economy ≤ 2 kg',
+            'label' => 'PostPac Economy',
             'przl'  => ['ECO'],
         ],
         'eco_sig' => [
-            'label' => 'PostPac Economy + Unterschrift ≤ 2 kg',
-            'przl'  => ['ECO', 'ZAW3213'],
+            'label' => 'PostPac Economy + Unterschrift',
+            'przl'  => ['ECO', 'SI'],
         ],
         'pri' => [
-            'label' => 'PostPac Priority ≤ 2 kg',
+            'label' => 'PostPac Priority',
             'przl'  => ['PRI'],
         ],
         'pri_sig' => [
-            'label' => 'PostPac Priority + Unterschrift ≤ 2 kg',
-            'przl'  => ['PRI', 'ZAW3213'],
+            'label' => 'PostPac Priority + Unterschrift',
+            'przl'  => ['PRI', 'SI'],
         ],
     ];
 
